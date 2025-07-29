@@ -23,7 +23,7 @@ const std::string &algo_idxfirst(const words &w, const WordleState &state)
 
 const std::string &algo_idxmiddle(const words &w, const WordleState &state)
 {
-    return w.strings[state.candidates.size() / 2];
+    return w.strings[state.candidates[state.candidates.size() / 2]];
 }
 
 const std::string &algo_idxlast(const words &w, const WordleState &state)
@@ -65,7 +65,7 @@ void runAlgorithm(Algo algorithm, std::string firstGuess)
     loadWords(w);
     int wins = 0;
     int turns = 0;
-    for (int i = 0; i < w.strings.size(); ++i)
+    for (int i = 1; i < w.strings.size(); ++i)
     {
         WordleState state;
         WordleGame game(w.strings[i], &state);
@@ -180,7 +180,18 @@ void autoWordle(std::string word, std::array<std::string, 6> guess_args)
 
 int main(int argc, char const *argv[])
 {
-    // playWordle("puers");
-    // autoWordle("tophi", {"aahed", "bhoot", "cotch", "holts", "tophi"});
-    runAlgorithm(algo_idxfirst, "salet");
+    switch (2)
+    {
+    case 0:
+        playWordle("aahed");
+        break;
+    case 1:
+        autoWordle("tophi", {"salet", "bhoot", "cotch", "holts", "tophi"});
+        break;
+    case 2:
+        runAlgorithm(algo_idxmiddle, "salet");
+        break;
+    default:
+        break;
+    }
 }

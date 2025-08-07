@@ -240,6 +240,7 @@ void ValidWords(const words &w, WordleState &state)
                     {
                         // Get only words in both lists
                         std::vector<int> intersection;
+                        intersection.reserve(candidates.size());
                         std::set_intersection(
                             candidates.begin(), candidates.end(),
                             current.begin(), current.end(),

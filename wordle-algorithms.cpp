@@ -143,19 +143,18 @@ const std::string &algo_normal(const words &w, const WordleState &state)
     if (state.candidates.size() == 1)
         return w.strings[state.candidates[0]];
 
-    // UNUSED VARIABLES
-    std::array<char, 26> dictionaryFrequency = {'e', 'a', 'o', 'r', 'i', 'l', 't', 'n', 's', 'u', 'd', 'p', 'm', 'y', 'c', 'h', 'g', 'b', 'k', 'f', 'w', 'v', 'z', 'j', 'x', 'q'};
+    // Variables:
     std::array<bool, 5> solvedLettersLocal = state.solvedLetters;
-    // VARIABLES
     uint32_t unplayedChars = ~(state.grey | state.requiredCharMask);
+    uint32_t unplayedCharsMask = 0;
     std::vector<std::pair<char, int>> sortedChFreq;
     sortedChFreq.reserve(26);
-
-    int tmp_chFreq[26] = {0};
-    std::array<uint32_t, 5> tmp_posCharMask = {0};
+    
+    int temp_chFreq[26] = {0};
+    std::array<uint32_t, 5> temp_posCharMask = {0};
     for (int word_idx : state.candidates)
     {
-        const std::string &word = w.strings[word_idx];
+        const auto &word = w.strings[word_idx];
         for (int i = 0; i < WORD_LEN; i++)
         {
             if (state.solvedLetters[i])
@@ -164,20 +163,22 @@ const std::string &algo_normal(const words &w, const WordleState &state)
             char ch = word[i];
             uint32_t chBit = 1u << (ch - 'a');
 
-            // Log char bit
-            tmp_posCharMask[i] |= chBit;
+            // Log char in given position
+            temp_posCharMask[i] |= chBit;
 
-            // Log char frequency
+            // Log unplayed char frequency
             if (unplayedChars & chBit)
-                tmp_chFreq[ch - 'a']++;
+            {
+                temp_chFreq[ch - 'a']++;
+                unplayedCharsMask |= chBit;
+            }
         }
     }
 
     // Do all candidates use only one letter in a position not marked as green?
-    // aka checks if only 1 bit is set for each position
     for (int i = 0; i < 5; i++)
     {
-        uint32_t charMask = tmp_posCharMask[i];
+        uint32_t charMask = temp_posCharMask[i];
         if (charMask && !(charMask & (charMask - 1)))
         {
             solvedLettersLocal[i] = true;
@@ -185,56 +186,66 @@ const std::string &algo_normal(const words &w, const WordleState &state)
             // Remove letter from char frequency array
             // because it is mandatory
             uint8_t idx = __builtin_ctz(charMask) + 1;
-            tmp_chFreq[idx] = 0;
+            temp_chFreq[idx] = 0;
         }
     }
 
+
     // Prepare the frequency char vector
-    for (int i = 0; i < 26; ++i)
-        if (tmp_chFreq[i] > 0)
-            sortedChFreq.emplace_back('a' + i, tmp_chFreq[i]);
+    if (sortedChFreq.size() > 0)
+    {
+        for (int i = 0; i < 26; ++i)
+            if (temp_chFreq[i] > 0)
+                sortedChFreq.emplace_back('a' + i, temp_chFreq[i]);
 
-    std::sort(sortedChFreq.begin(), sortedChFreq.end(),
-              [](const auto &a, const auto &b)
-              {
-                  return a.second > b.second;
-              });
+        std::sort(
+            sortedChFreq.begin(),
+            sortedChFreq.end(),
+            [](const auto &a, const auto &b)
+            {
+                return a.second > b.second;
+            });
 
-    // Get a shortlist containing the most amount of high value letters
+        
+    }
+
+    /* for (int i = 0; i < sortedChFreq.size() && shortlist.size() > MIN_LIST_SIZE; ++i)
+    {
+        char ch = sortedChFreq[i].first;
+        const auto &current = w.inv_index.find(ch)->second;
+
+        // intersect current shortlist with words that contain ch
+        std::vector<int> next;
+        next.reserve(shortlist.size());
+        std::set_intersection(
+            shortlist.begin(), shortlist.end(),
+            current.begin(), current.end(),
+            std::back_inserter(next));
+
+        if (!next.empty())
+            shortlist = std::move(next);
+    } */
+
     std::vector<int> shortlist;
     shortlist.resize(w.strings.size() - 1);
     std::iota(shortlist.begin(), shortlist.end(), 1);
-    // for (int i = 0; i < sortedChFreq.size() && shortlist.size() > MIN_LIST_SIZE; ++i)
-    //{
-    //     char ch = sortedChFreq[i].first;
-    //     const auto &current = w.inv_index.find(ch)->second;
-    //
-    //     // intersect current shortlist with words that contain ch
-    //     std::vector<int> next;
-    //     next.reserve(shortlist.size());
-    //     std::set_intersection(
-    //         shortlist.begin(), shortlist.end(),
-    //         current.begin(), current.end(),
-    //         std::back_inserter(next));
-    //
-    //     if (!next.empty())
-    //         shortlist = std::move(next);
-    // }
 
-    int sl = 0;
-    int yl = 0;
-    int ylm = 0;
+    // Count Green and Yellow chars
+    int greenLetters = 0;
+    int yellowLetters = 0;
+    int YellowLettersMask = 0;
     for (size_t i = 0; i < WORD_LEN; i++)
     {
         if (solvedLettersLocal[i])
-            sl++;
+            greenLetters++;
 
-        ylm |= state.yellow[i];
+        YellowLettersMask |= state.yellow[i];
     }
 
-    yl = std::__popcount(ylm);
+    yellowLetters = std::__popcount(YellowLettersMask);
 
-    if (sl >= 3)
+    // Adjust weights
+    if (greenLetters >= 3)
     {
         REPEATING_PENALTY = 30;
         YELLOW_CHAR_BONUS = 50;
@@ -242,12 +253,12 @@ const std::string &algo_normal(const words &w, const WordleState &state)
         CANDIDATE_BONUS = 30;
     }
 
-    if (yl > 3)
+    if (yellowLetters > 3)
     {
         YELLOW_CHAR_BONUS = 400;
     }
 
-    if (state.candidates.size() < 20 && sl <= 3)
+    if (state.candidates.size() < 20 && greenLetters <= 3)
     {
         CANDIDATE_BONUS = 500;
     }
@@ -259,11 +270,11 @@ const std::string &algo_normal(const words &w, const WordleState &state)
     std::unordered_set<int> candidatesSet(state.candidates.begin(), state.candidates.end());
     for (int word_idx : shortlist)
     {
-        const std::string &word = w.strings[word_idx];
-        int letter_frq[26] = {0};
+        const auto &word = w.strings[word_idx];
+        int word_char_frq[26] = {0};
         word_score = 0;
 
-        // Prefer candidates
+        // Word candidate bonus
         if (candidatesSet.count(word_idx))
             word_score += CANDIDATE_BONUS;
 
@@ -271,15 +282,16 @@ const std::string &algo_normal(const words &w, const WordleState &state)
         for (int i = 0; i < WORD_LEN; i++)
         {
             char ch = word[i];
-            int occurances = ++letter_frq[ch - 'a'];
+            uint32_t mask = 1u << (ch - 'a');
+            int occurances = ++word_char_frq[ch - 'a'];
 
-            if (localNewChars & (1u << (ch - 'a')))
+            if ((localNewChars & mask) && (unplayedCharsMask & mask))
             {
-                word_score += UNPLAYED_CHAR_BONUS;
+                word_score += UNPLAYED_CHAR_BONUS + 10 * sortedChFreq[ch - 'a'].second;
                 localNewChars |= (1u << ch - 'a');
             }
 
-            if (ylm & (1u << (ch - 'a')))
+            if (YellowLettersMask & (1u << (ch - 'a')))
                 word_score += YELLOW_CHAR_BONUS;
 
             if (occurances > 1)

@@ -139,6 +139,7 @@ struct WordleGame
     std::string word;
     WordleState *state;
     int currentTurn = 1;
+    Status status = Status::NEXT_TURN;
 
     WordleGame(const std::string &word, WordleState *state)
     {
@@ -146,18 +147,13 @@ struct WordleGame
         this->state = state;
     }
 
-    /**
-     * @warning On LOSS, object's currentTurn will be 7
-     */
     Status turn(const std::string &guess)
     {
         if (guess.length() != WORD_LEN)
             return Status::INVALID_TURN;
 
-        if (currentTurn > MAX_TURNS)
-            return Status::LOSS;
-
-        currentTurn++;
+        if (status != Status::NEXT_TURN)
+            return status;
 
         std::array<uint8_t, 26> tmp_maxSameChar = {0};
         std::array<uint8_t, 26> count_letters = {0};
@@ -212,9 +208,17 @@ struct WordleGame
 
         // All characters matched
         if (posIndex.size() == 0)
-            return Status::WIN;
+            status = Status::WIN;
+        // Last turn, no victory
+        else if (currentTurn == 6)
+            status = Status::LOSS;
+        else
+        {
+            status = Status::NEXT_TURN;
+            currentTurn++;
+        }
 
-        return Status::NEXT_TURN;
+        return status;
     }
 };
 

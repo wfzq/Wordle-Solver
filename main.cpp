@@ -11,10 +11,10 @@ void playSecretWord(const words &w, Algo algorithm);
 void playSecretWord(const words &w);
 
 void playWordle(const words &w, std::string word);
-void autoWordle(const words &w, std::string word, const std::array<std::string, 6> guess_args);
+void autoWordle(const words &w, std::string word, const std::vector<std::string> guess_args);
 void printTurn(const words &w, const WordleGame &game, const std::string &guess);
 void printTurn(const words &w, const WordleGame &game, const std::string &guess, const std::string &recommendation);
-void printTurn(const words &w, const WordleGame &game, const std::string &guess, const Status s);
+void printResult(const words &w, const WordleGame &game, const std::string &guess);
 
 // -------------------------------------------------------------------------------------------------
 
@@ -25,31 +25,27 @@ void runAlgorithm(const words &w, Algo algorithm, std::string firstGuess)
     for (const auto &currentWord : w.strings)
     {
         const std::string *guess = &firstGuess;
-        Status status;
         WordleState state;
         WordleGame game(currentWord, &state);
 
-        while ((status = game.turn(*guess)) == Status::NEXT_TURN)
+        while (game.turn(*guess) == Status::NEXT_TURN)
         {
             getCandidates(w, state);
             guess = &algorithm(w, state);
         }
 
-        switch (status)
-        {
-        case Status::WIN:
+        if (game.status == Status::WIN)
             wins++;
-            turns += game.currentTurn;
-            break;
+        turns += game.currentTurn;
 
-        case Status::LOSS:
-            turns += MAX_TURNS;
-            break;
+        // Catches invalid firstGuess
+        // Comment out for a very slight performance boost
 
-        default:
-            std::cerr << *guess << " is an invalid word!\n";
-            exit(1);
-        }
+        // if (game.status == Status::INVALID_TURN)
+        //  {
+        //  std::cerr << *guess << " is an invalid word!\n";
+        //  exit(1);
+        //  }
     }
 
     double Avgwinrate = static_cast<double>(wins) / w.strings.size() * 100.0;
@@ -66,11 +62,10 @@ void runAlgorithm(const words &w, Algo algorithm, std::string firstGuess, std::s
 {
     const std::string *guess = &firstGuess;
     const std::string *suggestion;
-    Status status;
     WordleState state;
     WordleGame game(wrd, &state);
 
-    while ((status = game.turn(*guess)) == Status::NEXT_TURN)
+    while (game.turn(*guess) == Status::NEXT_TURN)
     {
         getCandidates(w, state);
         suggestion = &algorithm(w, state);
@@ -78,7 +73,7 @@ void runAlgorithm(const words &w, Algo algorithm, std::string firstGuess, std::s
         guess = suggestion;
     }
 
-    printTurn(w, game, *guess, status);
+    printResult(w, game, *guess);
 }
 
 template <typename Algo>
@@ -89,11 +84,10 @@ void runAlgorithm_stepthrough(const words &w, Algo algorithm, std::string firstG
     {
         const std::string *guess = &firstGuess;
         const std::string *suggestion;
-        Status status;
         WordleState state;
         WordleGame game(currentWord, &state);
 
-        while ((status = game.turn(*guess)) == Status::NEXT_TURN)
+        while (game.turn(*guess) == Status::NEXT_TURN)
         {
             getCandidates(w, state);
             suggestion = &algorithm(w, state);
@@ -101,24 +95,21 @@ void runAlgorithm_stepthrough(const words &w, Algo algorithm, std::string firstG
             guess = suggestion;
         }
 
-        printTurn(w, game, *guess, status);
+        printResult(w, game, *guess);
         system("pause");
 
-        switch (status)
-        {
-        case Status::WIN:
+        if (game.status == Status::WIN)
             wins++;
-            turns += game.currentTurn;
-            break;
+        turns += game.currentTurn;
 
-        case Status::LOSS:
-            turns += MAX_TURNS;
-            break;
+        // Catches invalid firstGuess
+        // Comment out for a very slight performance boost
 
-        default:
-            std::cerr << *guess << " is an invalid word!\n";
-            exit(1);
-        }
+        // if (game.status == Status::INVALID_TURN)
+        //  {
+        //  std::cerr << *guess << " is an invalid word!\n";
+        //  exit(1);
+        //  }
     }
 
     double Avgwinrate = static_cast<double>(wins) / w.strings.size() * 100.0;
@@ -143,34 +134,42 @@ void playWordle(const words &w, std::string word)
         word = w.strings[rand];
     }
 
-    Status status;
     WordleState state;
     WordleGame game(word, &state);
     std::string guess;
+    std::cout << "Input: ";
     std::cin >> guess;
-    while ((status = game.turn(guess)) == Status::NEXT_TURN)
+    while (game.turn(guess) == Status::NEXT_TURN)
     {
         getCandidates(w, state);
         printTurn(w, game, guess);
-
         std::cout << "-------------------------------------------------------------------------------------\n";
+        std::cout << "Input: ";
         std::cin >> guess;
     }
-    printTurn(w, game, guess, status);
+    printResult(w, game, guess);
 }
 
-void autoWordle(const words &w, std::string word, const std::array<std::string, 6> guess_args)
+void autoWordle(const words &w, std::string word, const std::vector<std::string> guess_args)
 {
-    Status status;
     WordleState state;
     WordleGame game(word, &state);
 
+    const auto &lastWord = guess_args[guess_args.size() - 1];
+    if (lastWord != word && guess_args.size() != 6)
+    {
+        std::cerr << "Game cannot be abanoned mid way through";
+        exit(1);
+    }
+
     for (auto &&guess : guess_args)
     {
-        status = game.turn(guess);
+        game.turn(guess);
         getCandidates(w, state);
         printTurn(w, game, guess);
     }
+
+    printResult(w, game, guess_args[guess_args.size() - 1]);
 }
 
 template <typename Algo>
@@ -186,6 +185,7 @@ void playSecretWord(const words &w, Algo algorithm)
             break;
 
         // Get input
+        std::cout << "Input: "; // TODO: Flush buffer
         std::getline(std::cin, input);
         if (input.length() != WORD_LEN * 2 + 1)
             continue;
@@ -265,23 +265,23 @@ void printTurn(const words &w, const WordleGame &game, const std::string &guess,
     std::cout << "Algorithm suggestion: " << recommendation << "\n";
 }
 
-void printTurn(const words &w, const WordleGame &game, const std::string &guess, const Status s)
+void printResult(const words &w, const WordleGame &game, const std::string &guess)
 {
     std::cout << "\n\n";
     std::cout << "-------------------------------------------------------------------------------------\n";
-    std::cout << "                              " << game.currentTurn - 1 << "/6 - " << guess << " - ";
-    switch (s)
+    std::cout << "                              " << game.currentTurn << "/6 - " << guess << " - ";
+    switch (game.status)
     {
-        case Status::WIN:
+    case Status::WIN:
         std::cout << "Victory!";
         break;
-        
-        case Status::LOSS:
+
+    case Status::LOSS:
         std::cout << "Defeat!";
         break;
-        
-        default:
-        std::cerr << guess << " is invalid\n";
+
+    default:
+        std::cerr << "\n\n\nInvalid word: " << guess;
         exit(1);
     }
     std::cout << "                                 \n";
@@ -294,11 +294,11 @@ int main(int argc, char const *argv[])
     loadWords(w);
 
     // Constants
-    const std::array<std::string, 6> GUESS_ARRAY = {"salet", "umiaq", "adorb", "graph", "crank"};
-    const auto ALGORITHM = algo_entropy;
-    const auto SECRET_WORD = "extol";
-    const auto FIRST_GUESS = "tares";
-    
+    const std::vector<std::string> GUESS_ARRAY = {"salet", "gourd", "brunt", "fruit"};
+    const auto ALGORITHM = algo_normal;
+    const auto SECRET_WORD = "fruit";
+    const auto FIRST_GUESS = "salet";
+
     int input;
     std::cin >> input;
     switch (input)

@@ -34,6 +34,41 @@ struct VectorHash
     }
 };
 
+static inline uint16_t compute_pattern(const char *guess, const char *secret_word, const std::array<uint8_t, 26> &secret_precounts)
+{
+    std::array<uint8_t, 26> remaining = secret_precounts;
+    std::array<uint8_t, 5> pattern{};
+
+    for (int i = 0; i < 5; ++i)
+    {
+        if (guess[i] == secret_word[i])
+        {
+            pattern[i] = 2; // Green
+            remaining[(uint8_t)(secret_word[i] - 'a')]--;
+        }
+    }
+    for (int i = 0; i < 5; ++i)
+    {
+        if (pattern[i] == 2)
+            continue;
+
+        uint8_t c = (uint8_t)(guess[i] - 'a');
+        if (remaining[c] > 0)
+        {
+            pattern[i] = 1; // Yellow
+            remaining[c]--;
+        }
+        else
+            pattern[i] = 0; // Gray
+    }
+
+    // Encode pattern in base 3
+    uint16_t encoding = 0;
+    for (int i = 0; i < 5; ++i)
+        encoding = encoding * 3 + pattern[i];
+    return encoding;
+}
+
 // -------------------------------------------------------------------------------------------------
 //                                   Algorithm Implementations
 // -------------------------------------------------------------------------------------------------

@@ -15,6 +15,7 @@ void autoWordle(const words &w, std::string word, const std::vector<std::string>
 void printTurn(const words &w, const WordleGame &game, const std::string &guess);
 void printTurn(const words &w, const WordleGame &game, const std::string &guess, const std::string &recommendation);
 void printResult(const words &w, const WordleGame &game, const std::string &guess);
+inline void printMainMenu();
 
 // -------------------------------------------------------------------------------------------------
 
@@ -288,6 +289,20 @@ void printResult(const words &w, const WordleGame &game, const std::string &gues
     std::cout << "-------------------------------------------------------------------------------------\n";
 }
 
+inline void printMainMenu()
+{
+    std::cout << "Select Mode:\n";
+    std::cout << "--------------------\n";
+    std::cout << "1 - Play Wordle\n";
+    std::cout << "2 - Auto Wordle\n";
+    std::cout << "3 - Play Unknown Wordle\n";
+    std::cout << "4 - Algo Word\n";
+    std::cout << "5 - Algo Dictionary\n";
+    std::cout << "6 - Algo Dictionary Stepthrough\n";
+    std::cout << "--------------------\n";
+    std::cout << ">> ";
+}
+
 int main(int argc, char const *argv[])
 {
     words w;
@@ -295,10 +310,11 @@ int main(int argc, char const *argv[])
 
     // Constants
     const std::vector<std::string> GUESS_ARRAY = {"salet", "gourd", "brunt", "fruit"};
-    const auto ALGORITHM = algo_normal;
+    const auto ALGORITHM = algo_test1;
     const auto SECRET_WORD = "fruit";
     const auto FIRST_GUESS = "salet";
 
+    printMainMenu();
     int input;
     std::cin >> input;
     switch (input)

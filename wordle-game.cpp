@@ -5,15 +5,17 @@
 #include <unordered_map>
 #include <bits/stdc++.h>
 
+#define CALCULATE_ENTROPY true
 #define MAX_TURNS 6
 #define WORD_LEN 5
 #define WORD_URL "D:\\Code\\Wordle Solver\\valid-wordle-words.txt"
 
 struct words;
+struct entropy;
 struct WordleState;
 struct WordleGame;
 enum class Status : int;
-void loadWords(words &w);
+void loadWords(words &w, bool comp_entropy = false);
 uint64_t encode(const std::string &str);
 uint32_t bitmask(const std::string &str);
 void getCandidates(const words &w, WordleState &state);
@@ -24,6 +26,25 @@ struct words
     std::vector<uint32_t> masks;
     std::vector<uint64_t> encoded;
     std::unordered_map<char, std::vector<int>> inv_index;
+
+    entropy *e = 0;
+
+    ~words()
+    {
+        free(e);
+    }
+};
+
+struct entropy
+{
+    std::vector<uint8_t> pattern_table;
+    std::vector<double> klogk;
+
+    entropy(const words &w)
+    {
+        klogk = std::vector<double>(w.strings.size() + 1, 0.0);
+        pattern_table = std::vector<uint8_t>(w.strings.size() * w.strings.size());
+    }
 };
 
 struct WordleState
@@ -84,7 +105,7 @@ uint64_t encode(const std::string &str)
 //                                       Load Dictionary
 // -------------------------------------------------------------------------------------------------
 
-void loadWords(words &w)
+void loadWords(words &w, bool comp_entropy)
 {
     std::ifstream wWords(WORD_URL);
 
@@ -128,6 +149,72 @@ void loadWords(words &w)
     // Order inverse index
     for (auto &kv : w.inv_index)
         std::sort(kv.second.begin(), kv.second.end());
+
+    if (comp_entropy)
+    {
+        w.e = new entropy(w);
+
+        const int wordCount = w.strings.size();
+
+        // Precompute klogk
+        auto &klogk = w.e->klogk;
+        for (int i = 1; i <= wordCount; ++i)
+        {
+            // klokgk[0] = 0.0
+            klogk[i] = (double)i * std::log2((double)i);
+        }
+
+        // Precompile all patterns
+        auto &table = w.e->pattern_table;
+        for (int i = 0; i < wordCount; ++i)
+        {
+            const char *guess = w.strings[i].c_str();
+
+            for (int j = 0; j < wordCount; ++j)
+            {
+                const char *target = w.strings[j].c_str();
+
+                std::array<uint8_t, 26> remaining{};
+                std::array<uint8_t, 5> pattern{};
+
+                // fill remaining with target letter counts BEFORE marking greens
+                for (int t = 0; t < 5; ++t)
+                    ++remaining[(uint8_t)(target[t] - 'a')];
+
+                for (int k = 0; k < 5; ++k)
+                {
+                    if (guess[k] == target[k])
+                    {
+                        pattern[k] = 2; // Green
+                        remaining[(uint8_t)(target[k] - 'a')]--;
+                    }
+                }
+                
+                for (int k = 0; k < 5; ++k)
+                {
+                    if (pattern[k] == 2)
+                        continue;
+
+                    uint8_t char_idx = (uint8_t)(guess[k] - 'a');
+                    if (remaining[char_idx] > 0)
+                    {
+                        pattern[k] = 1; // Yellow
+                        remaining[char_idx]--;
+                    }
+                    else
+                        pattern[k] = 0; // Gray
+                }
+
+                // Encode pattern in base 3
+                uint8_t encoding = 0;
+                for (int k = 0; k < 5; ++k)
+                    encoding = encoding * 3 + pattern[k];
+
+                // i = guess index, j = target index
+                table[i * wordCount + j] = encoding;
+            }
+        }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -206,7 +293,7 @@ struct WordleGame
             if (tmp_maxSameChar[i] > state->maxSameChar[i])
                 state->maxSameChar[i] = tmp_maxSameChar[i];
 
-        // All characters matched
+        // All characters green
         if (posIndex.size() == 0)
             status = Status::WIN;
         // Last turn, no victory
